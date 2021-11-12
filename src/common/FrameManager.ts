@@ -428,28 +428,34 @@ export class FrameManager extends EventEmitter {
     contextPayload: Protocol.Runtime.ExecutionContextDescription,
     session: CDPSession
   ): void {
-    const auxData = contextPayload.auxData as { frameId?: string };
-    const frameId = auxData ? auxData.frameId : null;
-    const frame = this._frames.get(frameId) || null;
-    let world = null;
-    if (frame) {
-      // Only care about execution contexts created for the current session.
-      if (frame._client !== session) return;
+    const auxData = (contextPayload.auxData as { frameId?: string }) || {};
+    const { frameId } = auxData;
 
-      if (contextPayload.auxData && !!contextPayload.auxData['isDefault']) {
-        world = frame._mainWorld;
-      } else if (
-        contextPayload.name === UTILITY_WORLD_NAME &&
-        !frame._secondaryWorld._hasContext()
-      ) {
-        // In case of multiple sessions to the same target, there's a race between
-        // connections so we might end up creating multiple isolated worlds.
-        // We can use either.
-        world = frame._secondaryWorld;
+    let world;
+    let frameClient;
+    if (frameId) {
+      const frame = this._frames.get(frameId);
+      if (frame) {
+        // Only care about execution contexts created for the current session.
+        if (frame._client !== session) return;
+
+        if (contextPayload.auxData && !!contextPayload.auxData['isDefault']) {
+          world = frame._mainWorld;
+        } else if (
+          contextPayload.name === UTILITY_WORLD_NAME &&
+          !frame._secondaryWorld._hasContext()
+        ) {
+          // In case of multiple sessions to the same target, there's a race between
+          // connections so we might end up creating multiple isolated worlds.
+          // We can use either.
+          world = frame._secondaryWorld;
+        }
+        frameClient = frame._client;
       }
     }
+
     const context = new ExecutionContext(
-      frame._client || this._client,
+      frameClient || this._client,
       contextPayload,
       world
     );
